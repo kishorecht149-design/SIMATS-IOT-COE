@@ -1,0 +1,35 @@
+import React from "react";
+import { getPage } from "@/lib/services/page-service";
+import { getGlobalSettings } from "@/lib/services/settings-service";
+import { SectionRenderer } from "@/components/cms/SectionRenderer";
+import type { Metadata } from "next";
+
+export const revalidate = 60;
+
+export const metadata: Metadata = {
+  title: "Organizing Committee & Leadership | IoT Lab CoE - Saveetha",
+  description: "Meet the distinguished faculty leads, technical mentors, and student convenors driving the IoT Lab Centre of Excellence.",
+};
+
+export default async function TeamPage() {
+  const [page, settings] = await Promise.all([
+    getPage("team"),
+    getGlobalSettings(),
+  ]);
+
+  if (!page) {
+    return <div className="p-12 text-center text-xs font-mono">Page not found</div>;
+  }
+
+  return (
+    <div className="flex flex-col min-h-screen">
+      {page.sections.map((section) => (
+        <SectionRenderer
+          key={section.id}
+          section={section}
+          globalSettings={settings}
+        />
+      ))}
+    </div>
+  );
+}
