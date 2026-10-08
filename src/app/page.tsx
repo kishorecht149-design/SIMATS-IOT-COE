@@ -1,9 +1,10 @@
 import React from "react";
 import { getPage } from "@/lib/services/page-service";
 import { getGlobalSettings } from "@/lib/services/settings-service";
-import connectToDatabase from "@/lib/db/mongodb";
+import connectToDatabase, { isDatabaseConnected } from "@/lib/db/mongodb";
 import Registration from "@/models/Registration";
 import { SectionRenderer } from "@/components/cms/SectionRenderer";
+import { getMemoryRegistrations } from "@/lib/services/registration-store";
 
 export const revalidate = 60; // ISR revalidation
 
@@ -13,14 +14,14 @@ export default async function HomePage() {
     getGlobalSettings(),
   ]);
 
-  let totalRegistrations = 0;
+  let totalRegistrations = getMemoryRegistrations().length;
   try {
     const conn = await connectToDatabase();
-    if (conn) {
+    if (conn && isDatabaseConnected()) {
       totalRegistrations = await Registration.countDocuments();
     }
   } catch (err) {
-    // Graceful fallback
+    totalRegistrations = getMemoryRegistrations().length;
   }
 
   if (!page || !page.sections) {

@@ -1,8 +1,9 @@
 import React from "react";
-import connectToDatabase from "@/lib/db/mongodb";
+import connectToDatabase, { isDatabaseConnected } from "@/lib/db/mongodb";
 import Registration from "@/models/Registration";
 import AuditLog from "@/models/AuditLog";
 import { getGlobalSettings } from "@/lib/services/settings-service";
+import { getMemoryRegistrations } from "@/lib/services/registration-store";
 import { DashboardClient } from "./DashboardClient";
 
 export const dynamic = "force-dynamic";
@@ -40,7 +41,7 @@ export default async function AdminDashboardPage() {
     externalCount: 0,
   };
 
-  if (conn) {
+  if (conn && isDatabaseConnected()) {
     try {
       totalRegistrations = await Registration.countDocuments();
 
@@ -90,6 +91,22 @@ export default async function AdminDashboardPage() {
     } catch (error) {
       console.error("Dashboard stats aggregation error:", error);
     }
+  } else {
+    // Memory store fallback
+    const memList = getMemoryRegistrations();
+    totalRegistrations = memList.length;
+    recentRegistrations = memList.slice(0, 10);
+    memList.forEach((r) => {
+      statusCounts[r.status] = (statusCounts[r.status] || 0) + 1;
+      if (r.trackId) trackCounts[r.trackId] = (trackCounts[r.trackId] || 0) + 1;
+      if (r.state) stateCounts[r.state] = (stateCounts[r.state] || 0) + 1;
+      if (r.requirements?.powerSupply) hardwareStats.powerNeeded++;
+      if (r.requirements?.wifiAccess) hardwareStats.wifiNeeded++;
+      hardwareStats.prototypeCount++;
+      const isInternal = (r.collegeName || "").toLowerCase().includes("saveetha") || (r.collegeName || "").toLowerCase().includes("sse");
+      if (isInternal) institutionStats.internalCount++;
+      else institutionStats.externalCount++;
+    });
   }
 
   return (

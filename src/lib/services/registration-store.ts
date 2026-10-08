@@ -12,26 +12,35 @@ export interface MemoryRegistration {
     name: string;
     email: string;
     phone: string;
-    registerNumber: string;
+    registerNumber?: string;
+    rollNo?: string;
+    gender?: string;
+    isLead?: boolean;
   };
   teamMembers: Array<{
     name: string;
-    email: string;
-    phone: string;
-    registerNumber: string;
-    department: string;
+    email?: string;
+    phone?: string;
+    registerNumber?: string;
+    rollNo?: string;
+    gender?: string;
+    department?: string;
+    isLead?: boolean;
   }>;
   projectTitle: string;
   trackId: string;
   abstractText: string;
-  hardwareComponents: string;
+  hardwareComponents: string | string[];
   projectStage: string;
   demoUrl?: string;
   requirements: {
-    powerSupply: boolean;
-    oscilloscope: boolean;
-    wifiAccess: boolean;
-    solderingStation: boolean;
+    powerSupply?: boolean;
+    oscilloscope?: boolean;
+    wifiAccess?: boolean;
+    solderingStation?: boolean;
+    powerOutlet?: boolean;
+    wifi?: boolean;
+    specialEquipment?: string;
     additionalNotes?: string;
   };
   mentorDetails?: {

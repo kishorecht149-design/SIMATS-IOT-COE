@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import connectToDatabase from "@/lib/db/mongodb";
+import connectToDatabase, { isDatabaseConnected } from "@/lib/db/mongodb";
 import Registration from "@/models/Registration";
 import { getMemoryRegistrations } from "@/lib/services/registration-store";
 
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
 
     try {
       const conn = await connectToDatabase();
-      if (conn) {
+      if (conn && isDatabaseConnected()) {
         reg = await Registration.findOne({
           registrationId: cleanRegId,
           "leadMember.email": cleanEmail,

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import connectToDatabase from "@/lib/db/mongodb";
+import connectToDatabase, { isDatabaseConnected } from "@/lib/db/mongodb";
 import Registration from "@/models/Registration";
 import { getGlobalSettings } from "@/lib/services/settings-service";
 import { RegistrationFormSchema } from "@/lib/validations/registration";
@@ -7,6 +7,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { recordAuditLog } from "@/lib/services/audit-service";
 import { sendRegistrationConfirmationEmail } from "@/lib/services/email-service";
 import { formatDateRange } from "@/lib/utils";
+import { addMemoryRegistration, getMemoryRegistrations } from "@/lib/services/registration-store";
 
 export async function POST(request: NextRequest) {
   try {
@@ -48,15 +49,20 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    await connectToDatabase();
+    const conn = await connectToDatabase();
+    const isOnline = conn && isDatabaseConnected();
 
-    if (settings.maxCapacity) {
-      const currentCount = await Registration.countDocuments();
-      if (currentCount >= settings.maxCapacity) {
-        return NextResponse.json(
-          { error: "Registration capacity limit reached. Please contact coordinators for waitlist options." },
-          { status: 400 }
-        );
+    if (settings.maxCapacity && isOnline) {
+      try {
+        const currentCount = await Registration.countDocuments();
+        if (currentCount >= settings.maxCapacity) {
+          return NextResponse.json(
+            { error: "Registration capacity limit reached. Please contact coordinators for waitlist options." },
+            { status: 400 }
+          );
+        }
+      } catch (e) {
+        // Fallback
       }
     }
 
@@ -64,18 +70,24 @@ export async function POST(request: NextRequest) {
     const validatedData = RegistrationFormSchema.parse(body);
 
     // 5. Prevent Duplicates (Same lead email + same project title)
-    const existingSubmission = await Registration.findOne({
-      "leadMember.email": validatedData.leadMember.email.toLowerCase(),
-      projectTitle: { $regex: new RegExp(`^${validatedData.projectTitle.trim()}$`, "i") },
-    });
+    if (isOnline) {
+      try {
+        const existingSubmission = await Registration.findOne({
+          "leadMember.email": validatedData.leadMember.email.toLowerCase(),
+          projectTitle: { $regex: new RegExp(`^${validatedData.projectTitle.trim()}$`, "i") },
+        });
 
-    if (existingSubmission) {
-      return NextResponse.json(
-        {
-          error: `A project titled "${validatedData.projectTitle}" has already been submitted under email ${validatedData.leadMember.email}. Use the status lookup portal with your Registration ID (${existingSubmission.registrationId}).`,
-        },
-        { status: 409 }
-      );
+        if (existingSubmission) {
+          return NextResponse.json(
+            {
+              error: `A project titled "${validatedData.projectTitle}" has already been submitted under email ${validatedData.leadMember.email}. Use the status lookup portal with your Registration ID (${existingSubmission.registrationId}).`,
+            },
+            { status: 409 }
+          );
+        }
+      } catch (e) {
+        // Continue
+      }
     }
 
     // 6. Generate Unique Registration ID: EXP-2026-XXXXX
@@ -83,37 +95,91 @@ export async function POST(request: NextRequest) {
     const edition = settings.eventEdition || "2026";
     const registrationId = `EXP-${edition}-${randomSuffix}`;
 
+    let targetId = registrationId;
+
     // 7. Insert Registration Record
-    const newReg = await Registration.create({
-      registrationId,
-      teamName: validatedData.teamName,
-      collegeName: validatedData.collegeName,
-      department: validatedData.department,
-      city: validatedData.city,
-      state: validatedData.state,
-      yearOfStudy: validatedData.yearOfStudy,
-      leadMember: validatedData.leadMember,
-      teamMembers: validatedData.teamMembers,
-      projectTitle: validatedData.projectTitle,
-      trackId: validatedData.trackId,
-      abstractText: validatedData.abstractText,
-      hardwareComponents: validatedData.hardwareComponents,
-      projectStage: validatedData.projectStage,
-      demoUrl: validatedData.demoUrl || "",
-      requirements: validatedData.requirements,
-      mentorDetails: validatedData.mentorDetails,
-      abstractFileUrl: validatedData.abstractFileUrl,
-      posterFileUrl: validatedData.posterFileUrl || "",
-      status: "Submitted",
-      adminRemarks: "Your project abstract has been received and entered into the technical evaluation queue.",
-    });
+    if (isOnline) {
+      try {
+        const newReg = await Registration.create({
+          registrationId,
+          teamName: validatedData.teamName,
+          collegeName: validatedData.collegeName,
+          department: validatedData.department,
+          city: validatedData.city,
+          state: validatedData.state,
+          yearOfStudy: validatedData.yearOfStudy,
+          leadMember: validatedData.leadMember,
+          teamMembers: validatedData.teamMembers,
+          projectTitle: validatedData.projectTitle,
+          trackId: validatedData.trackId,
+          abstractText: validatedData.abstractText,
+          hardwareComponents: validatedData.hardwareComponents,
+          projectStage: validatedData.projectStage,
+          demoUrl: validatedData.demoUrl || "",
+          requirements: validatedData.requirements,
+          mentorDetails: validatedData.mentorDetails,
+          abstractFileUrl: validatedData.abstractFileUrl,
+          posterFileUrl: validatedData.posterFileUrl || "",
+          status: "Submitted",
+          adminRemarks: "Your project abstract has been received and entered into the technical evaluation queue.",
+        });
+        targetId = newReg._id.toString();
+      } catch (createErr) {
+        console.warn("DB write failed, falling back to memory store:", createErr);
+        addMemoryRegistration({
+          registrationId,
+          teamName: validatedData.teamName,
+          collegeName: validatedData.collegeName,
+          department: validatedData.department,
+          city: validatedData.city,
+          state: validatedData.state,
+          yearOfStudy: validatedData.yearOfStudy,
+          leadMember: validatedData.leadMember,
+          teamMembers: validatedData.teamMembers,
+          projectTitle: validatedData.projectTitle,
+          trackId: validatedData.trackId,
+          abstractText: validatedData.abstractText,
+          hardwareComponents: validatedData.hardwareComponents,
+          projectStage: validatedData.projectStage,
+          demoUrl: validatedData.demoUrl || "",
+          requirements: validatedData.requirements,
+          mentorDetails: validatedData.mentorDetails,
+          abstractFileUrl: validatedData.abstractFileUrl,
+          status: "Submitted",
+          adminRemarks: "Your project abstract has been received and entered into the technical evaluation queue.",
+        });
+      }
+    } else {
+      addMemoryRegistration({
+        registrationId,
+        teamName: validatedData.teamName,
+        collegeName: validatedData.collegeName,
+        department: validatedData.department,
+        city: validatedData.city,
+        state: validatedData.state,
+        yearOfStudy: validatedData.yearOfStudy,
+        leadMember: validatedData.leadMember,
+        teamMembers: validatedData.teamMembers,
+        projectTitle: validatedData.projectTitle,
+        trackId: validatedData.trackId,
+        abstractText: validatedData.abstractText,
+        hardwareComponents: validatedData.hardwareComponents,
+        projectStage: validatedData.projectStage,
+        demoUrl: validatedData.demoUrl || "",
+        requirements: validatedData.requirements,
+        mentorDetails: validatedData.mentorDetails,
+        abstractFileUrl: validatedData.abstractFileUrl,
+        status: "Submitted",
+        adminRemarks: "Your project abstract has been received and entered into the technical evaluation queue.",
+      });
+    }
 
     // 8. Record in Audit Log
     await recordAuditLog({
       userEmail: validatedData.leadMember.email,
       action: "REGISTRATION_SUBMITTED",
       targetEntity: "Registration",
-      targetId: newReg._id.toString(),
+      targetId,
       diff: {
         registrationId,
         teamName: validatedData.teamName,

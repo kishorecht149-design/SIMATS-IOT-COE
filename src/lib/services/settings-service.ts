@@ -1,4 +1,4 @@
-import connectToDatabase from "@/lib/db/mongodb";
+import connectToDatabase, { isDatabaseConnected } from "@/lib/db/mongodb";
 import Settings, { ISettings } from "@/models/Settings";
 import { DEFAULT_SETTINGS, GlobalSettingsType } from "@/lib/default-settings";
 import { revalidatePath } from "next/cache";
@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 export async function getGlobalSettings(): Promise<GlobalSettingsType> {
   try {
     const conn = await connectToDatabase();
-    if (!conn) {
+    if (!conn || !isDatabaseConnected()) {
       return DEFAULT_SETTINGS;
     }
 
@@ -48,7 +48,7 @@ export async function getGlobalSettings(): Promise<GlobalSettingsType> {
 
 export async function updateGlobalSettings(data: Partial<GlobalSettingsType>): Promise<GlobalSettingsType> {
   const conn = await connectToDatabase();
-  if (!conn) {
+  if (!conn || !isDatabaseConnected()) {
     Object.assign(DEFAULT_SETTINGS, data);
     revalidatePath("/", "layout");
     return DEFAULT_SETTINGS;

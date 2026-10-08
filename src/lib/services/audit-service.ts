@@ -1,4 +1,4 @@
-import connectToDatabase from "@/lib/db/mongodb";
+import connectToDatabase, { isDatabaseConnected } from "@/lib/db/mongodb";
 import AuditLog from "@/models/AuditLog";
 
 interface CreateAuditLogParams {
@@ -13,7 +13,10 @@ interface CreateAuditLogParams {
 
 export async function recordAuditLog(params: CreateAuditLogParams): Promise<void> {
   try {
-    await connectToDatabase();
+    const conn = await connectToDatabase();
+    if (!conn || !isDatabaseConnected()) {
+      return;
+    }
     await AuditLog.create({
       userId: params.userId,
       userEmail: params.userEmail,
@@ -30,7 +33,10 @@ export async function recordAuditLog(params: CreateAuditLogParams): Promise<void
 
 export async function getAuditLogs(limit = 50, skip = 0) {
   try {
-    await connectToDatabase();
+    const conn = await connectToDatabase();
+    if (!conn || !isDatabaseConnected()) {
+      return { logs: [], total: 0 };
+    }
     const logs = await AuditLog.find()
       .sort({ createdAt: -1 })
       .skip(skip)

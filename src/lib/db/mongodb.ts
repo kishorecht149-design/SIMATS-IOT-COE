@@ -23,8 +23,12 @@ if (!cached) {
   cached = global.mongooseCache = { conn: null, promise: null, lastFailedTime: 0 };
 }
 
-// Cooldown period after a failed connection attempt (e.g., local DB offline)
-const FAILURE_COOLDOWN_MS = 30000;
+// Cooldown period after a failed connection attempt (e.g., local DB offline or bad credentials)
+const FAILURE_COOLDOWN_MS = 15000;
+
+export function isDatabaseConnected(): boolean {
+  return (mongoose.connection.readyState as number) === 1;
+}
 
 export async function connectToDatabase(): Promise<typeof mongoose | null> {
   if (!MONGODB_URI) {
@@ -32,8 +36,9 @@ export async function connectToDatabase(): Promise<typeof mongoose | null> {
   }
 
   // If already connected, return in 0ms
-  if (cached.conn) {
-    return cached.conn;
+  if ((mongoose.connection.readyState as number) === 1) {
+    cached.conn = mongoose;
+    return mongoose;
   }
 
   // If previous attempt failed recently, bypass immediately (0ms latency fallback)
@@ -46,8 +51,8 @@ export async function connectToDatabase(): Promise<typeof mongoose | null> {
     const opts = {
       bufferCommands: false,
       maxPoolSize: 10,
-      serverSelectionTimeoutMS: 600, // Super-fast 600ms discovery timeout
-      connectTimeoutMS: 600,
+      serverSelectionTimeoutMS: 2500, // 2.5s discovery timeout
+      connectTimeoutMS: 2500,
     };
 
     cached.promise = mongoose
@@ -62,7 +67,7 @@ export async function connectToDatabase(): Promise<typeof mongoose | null> {
         cached.conn = null;
         cached.lastFailedTime = Date.now();
         console.warn(
-          "MongoDB unavailable (instant zero-delay memory cache active):",
+          "MongoDB unavailable (memory fallback store active):",
           err.message || err
         );
         return null;
@@ -71,7 +76,10 @@ export async function connectToDatabase(): Promise<typeof mongoose | null> {
 
   try {
     const res = await cached.promise;
-    return res;
+    if (res && (mongoose.connection.readyState as number) === 1) {
+      return res;
+    }
+    return null;
   } catch (e) {
     cached.promise = null;
     cached.conn = null;

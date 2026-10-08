@@ -1,4 +1,4 @@
-import connectToDatabase from "@/lib/db/mongodb";
+import connectToDatabase, { isDatabaseConnected } from "@/lib/db/mongodb";
 import Page, { IPage, PageRevision, IPageRevision } from "@/models/Page";
 import { DEFAULT_PAGES, DefaultPageConfig } from "@/lib/cms/default-pages";
 import { revalidatePath } from "next/cache";
@@ -7,7 +7,7 @@ import { recordAuditLog } from "@/lib/services/audit-service";
 export async function getPage(slug: string): Promise<DefaultPageConfig | null> {
   try {
     const conn = await connectToDatabase();
-    if (!conn) {
+    if (!conn || !isDatabaseConnected()) {
       return DEFAULT_PAGES[slug] || null;
     }
 
@@ -40,7 +40,7 @@ export async function getPage(slug: string): Promise<DefaultPageConfig | null> {
 export async function getAllPages() {
   try {
     const conn = await connectToDatabase();
-    if (!conn) {
+    if (!conn || !isDatabaseConnected()) {
       return Object.values(DEFAULT_PAGES).map((p) => ({
         slug: p.slug,
         title: p.title,
@@ -92,7 +92,7 @@ export async function savePage(
   userEmail?: string
 ) {
   const conn = await connectToDatabase();
-  if (!conn) {
+  if (!conn || !isDatabaseConnected()) {
     DEFAULT_PAGES[slug] = {
       slug,
       title: payload.title,
@@ -155,7 +155,7 @@ export async function savePage(
 export async function getPageRevisions(slug: string) {
   try {
     const conn = await connectToDatabase();
-    if (!conn) return [];
+    if (!conn || !isDatabaseConnected()) return [];
     return await PageRevision.find({ slug: slug.toLowerCase() })
       .sort({ createdAt: -1 })
       .limit(20)

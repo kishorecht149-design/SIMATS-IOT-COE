@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentSession } from "@/lib/services/auth-service";
-import connectToDatabase from "@/lib/db/mongodb";
+import connectToDatabase, { isDatabaseConnected } from "@/lib/db/mongodb";
 import Registration from "@/models/Registration";
 import { getMemoryRegistrations } from "@/lib/services/registration-store";
 
@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const conn = await connectToDatabase();
-    if (!conn) {
+    if (!conn || !isDatabaseConnected()) {
       throw new Error("DB offline");
     }
 

@@ -1,4 +1,4 @@
-import connectToDatabase from "@/lib/db/mongodb";
+import connectToDatabase, { isDatabaseConnected } from "@/lib/db/mongodb";
 import User, { IUser, UserRole } from "@/models/User";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { signSessionToken, verifySessionToken, SessionPayload } from "@/lib/auth/jwt";
@@ -10,7 +10,7 @@ export const SESSION_COOKIE_NAME = "simats_iot_session";
 export async function ensureInitialSuperAdmin(): Promise<void> {
   try {
     const conn = await connectToDatabase();
-    if (!conn) return;
+    if (!conn || !isDatabaseConnected()) return;
 
     const adminCount = await User.countDocuments();
     if (adminCount === 0) {
@@ -45,7 +45,7 @@ export async function authenticateAdmin(
     const conn = await connectToDatabase();
 
     // Fallback: If DB is not connected or offline, allow bootstrap Super Admin login
-    if (!conn) {
+    if (!conn || !isDatabaseConnected()) {
       if (email.toLowerCase() === defaultEmail && pass === defaultPass) {
         const sessionPayload: SessionPayload = {
           userId: "super-admin-dev-id",
@@ -140,7 +140,7 @@ export async function authenticateGoogleUser(
       role = "SUPER_ADMIN";
     }
 
-    if (!conn) {
+    if (!conn || !isDatabaseConnected()) {
       const sessionPayload: SessionPayload = {
         userId: `google-${profile.sub || "user"}-${Date.now()}`,
         email,
