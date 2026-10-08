@@ -308,8 +308,8 @@ Contact: ${settings.contactEmail}
   const brevoApiKey = process.env.BREVO_API_KEY || process.env.SIB_API_KEY;
   if (brevoApiKey && brevoApiKey.trim() !== "") {
     try {
-      const fromEmail = process.env.EMAIL_FROM_ADDRESS || process.env.BREVO_SENDER || "kishorecht149@gmail.com";
-      const fromName = process.env.EMAIL_FROM_NAME || "Saveetha IoT CoE";
+      const fromEmail = process.env.EMAIL_FROM_ADDRESS || process.env.BREVO_SENDER || process.env.EMAIL_FROM?.match(/<([^>]+)>/)?.[1] || "simatsiotclub@gmail.com";
+      const fromName = process.env.EMAIL_FROM_NAME || "IoT Lab CoE, Saveetha";
       const res = await fetch("https://api.brevo.com/v3/smtp/email", {
         method: "POST",
         headers: {
