@@ -268,7 +268,7 @@ Contact: iotcoe.ece@saveetha.com
   const resendApiKey = process.env.RESEND_API_KEY;
   if (resendApiKey && resendApiKey.trim() !== "") {
     try {
-      const from = process.env.EMAIL_FROM || "IoT CoE SIMATS <onboarding@resend.dev>";
+      const from = process.env.EMAIL_FROM || process.env.GMAIL_FROM || process.env.RESEND_FROM || "IoT CoE SIMATS <onboarding@resend.dev>";
       const res = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: {
@@ -290,10 +290,12 @@ Contact: iotcoe.ece@saveetha.com
         return { success: true, provider: "resend", messageId: data.id };
       } else {
         console.error("[RESEND ERROR]", data);
-        // If Resend failed (e.g. domain not verified on free tier), fallback to SMTP/Gmail if configured
+        const errMsg = data.message || (typeof data === "object" ? JSON.stringify(data) : String(data));
+        return { success: false, provider: "resend", error: `Resend API rejected: ${errMsg}` };
       }
     } catch (resendErr: any) {
       console.error("[RESEND FETCH EXCEPTION]", resendErr.message || resendErr);
+      return { success: false, provider: "resend", error: `Resend request failed: ${resendErr.message}` };
     }
   }
 
@@ -310,8 +312,9 @@ Contact: iotcoe.ece@saveetha.com
         },
       });
 
+      const fromAddress = process.env.EMAIL_FROM || process.env.GMAIL_FROM || `"SIMATS IoT CoE" <${gmailUser}>`;
       const info = await transporter.sendMail({
-        from: `"SIMATS IoT CoE" <${gmailUser}>`,
+        from: fromAddress,
         to: payload.recipientEmail,
         subject: emailSubject,
         text: textContent,
@@ -322,6 +325,7 @@ Contact: iotcoe.ece@saveetha.com
       return { success: true, provider: "gmail", messageId: info.messageId };
     } catch (gmailErr: any) {
       console.error("[GMAIL SMTP ERROR]", gmailErr.message || gmailErr);
+      return { success: false, provider: "gmail", error: `Gmail SMTP failed: ${gmailErr.message}` };
     }
   }
 
