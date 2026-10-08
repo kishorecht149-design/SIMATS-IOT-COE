@@ -51,6 +51,25 @@ export default function AdminSettingsPage() {
     }));
   };
 
+  const updateEmailTemplates = (key: string, value: string) => {
+    setSettings((prev) => ({
+      ...prev,
+      emailTemplates: {
+        confirmationSubject: "[Expothon 2026] Registration Confirmed: {registrationId} - {projectTitle}",
+        confirmationHeading: "IoT Lab Centre of Excellence",
+        confirmationSubheading: "Saveetha School of Engineering, SIMATS • Expothon 2026",
+        confirmationGreeting: "Dear {leadName} & Team,",
+        confirmationBodyText: "Thank you for submitting your project abstract for Expothon 2026 — National-Level IoT & Embedded Systems Project Exhibition organized by the IoT Lab Centre of Excellence (CoE), Department of ECE.",
+        confirmationNextSteps: "Your submission is currently undergoing review by the Technical Evaluation Committee. Shortlist results and physical demo stall assignments will be announced on November 01, 2026.",
+        confirmationFooterNote: "Please save this email and your Registration ID ({registrationId}) for all future correspondence, certificate verification, and venue entry on {eventDate}.",
+        statusUpdateSubject: "[Expothon 2026] Application Status Update: {registrationId}",
+        statusUpdateBody: "Your application for Expothon 2026 project exhibition has been updated. Please log in to the status portal using your Registration ID to check allocation details.",
+        ...(prev.emailTemplates || {}),
+        [key]: value,
+      },
+    }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
@@ -660,12 +679,119 @@ export default function AdminSettingsPage() {
           </div>
         </div>
 
-        {/* Section 5: Email Dispatch Diagnostics */}
+        {/* Section 5: Editable Email Templates */}
+        <div className="p-6 rounded border border-border bg-card space-y-5">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-bold tracking-tight text-foreground uppercase font-mono flex items-center gap-2">
+              <Mail className="h-4 w-4 text-primary" />
+              <span>5. Editable Email Templates (Confirmation & Updates)</span>
+            </h2>
+            <Badge variant="tech" size="sm">
+              DYNAMIC TEMPLATES
+            </Badge>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Customize the automated emails dispatched to team leads upon registration and status updates. Use dynamic tags to personalize messages.
+          </p>
+
+          {/* Tag Helper Pills */}
+          <div className="p-3 rounded bg-muted/40 border border-border/60 text-xs space-y-1.5">
+            <div className="font-mono text-[11px] font-semibold text-foreground uppercase">Available Dynamic Tags (Auto-Replaced):</div>
+            <div className="flex flex-wrap gap-1.5 font-mono text-[11px]">
+              {["{leadName}", "{teamName}", "{registrationId}", "{projectTitle}", "{trackId}", "{collegeName}", "{department}", "{eventDate}", "{venue}", "{statusLookupUrl}"].map((tag) => (
+                <span key={tag} className="px-2 py-0.5 rounded bg-background border border-border text-primary font-medium select-all cursor-pointer hover:border-primary">
+                  {tag}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-4 text-xs">
+            {/* Subject */}
+            <div className="space-y-1.5">
+              <label className="font-mono text-muted-foreground">EMAIL SUBJECT LINE</label>
+              <input
+                type="text"
+                value={settings.emailTemplates?.confirmationSubject || "[Expothon 2026] Registration Confirmed: {registrationId} - {projectTitle}"}
+                onChange={(e) => updateEmailTemplates("confirmationSubject", e.target.value)}
+                className="w-full h-9 px-3 rounded border border-border bg-background text-foreground font-mono"
+              />
+            </div>
+
+            {/* Header & Subheader */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="font-mono text-muted-foreground">EMAIL HEADER TITLE</label>
+                <input
+                  type="text"
+                  value={settings.emailTemplates?.confirmationHeading || "IoT Lab Centre of Excellence"}
+                  onChange={(e) => updateEmailTemplates("confirmationHeading", e.target.value)}
+                  className="w-full h-9 px-3 rounded border border-border bg-background text-foreground"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="font-mono text-muted-foreground">EMAIL HEADER SUBTITLE / TAGLINE</label>
+                <input
+                  type="text"
+                  value={settings.emailTemplates?.confirmationSubheading || "Saveetha School of Engineering, SIMATS • Expothon 2026"}
+                  onChange={(e) => updateEmailTemplates("confirmationSubheading", e.target.value)}
+                  className="w-full h-9 px-3 rounded border border-border bg-background text-foreground"
+                />
+              </div>
+            </div>
+
+            {/* Greeting */}
+            <div className="space-y-1.5">
+              <label className="font-mono text-muted-foreground">SALUTATION / GREETING</label>
+              <input
+                type="text"
+                value={settings.emailTemplates?.confirmationGreeting || "Dear {leadName} & Team,"}
+                onChange={(e) => updateEmailTemplates("confirmationGreeting", e.target.value)}
+                className="w-full h-9 px-3 rounded border border-border bg-background text-foreground"
+              />
+            </div>
+
+            {/* Opening Paragraph */}
+            <div className="space-y-1.5">
+              <label className="font-mono text-muted-foreground">CONFIRMATION BODY MESSAGE</label>
+              <textarea
+                rows={3}
+                value={settings.emailTemplates?.confirmationBodyText || "Thank you for submitting your project abstract for Expothon 2026 — National-Level IoT & Embedded Systems Project Exhibition organized by the IoT Lab Centre of Excellence (CoE), Department of ECE."}
+                onChange={(e) => updateEmailTemplates("confirmationBodyText", e.target.value)}
+                className="w-full p-3 rounded border border-border bg-background text-foreground"
+              />
+            </div>
+
+            {/* Next Steps Box */}
+            <div className="space-y-1.5">
+              <label className="font-mono text-muted-foreground">NEXT STEPS / REVIEW NOTICE BOX</label>
+              <textarea
+                rows={2}
+                value={settings.emailTemplates?.confirmationNextSteps || "Your submission is currently undergoing review by the Technical Evaluation Committee. Shortlist results and physical demo stall assignments will be announced on November 01, 2026."}
+                onChange={(e) => updateEmailTemplates("confirmationNextSteps", e.target.value)}
+                className="w-full p-3 rounded border border-border bg-background text-foreground"
+              />
+            </div>
+
+            {/* Footer Note */}
+            <div className="space-y-1.5">
+              <label className="font-mono text-muted-foreground">FOOTER VERIFICATION & VENUE INSTRUCTION</label>
+              <textarea
+                rows={2}
+                value={settings.emailTemplates?.confirmationFooterNote || "Please save this email and your Registration ID ({registrationId}) for all future correspondence, certificate verification, and venue entry on {eventDate}."}
+                onChange={(e) => updateEmailTemplates("confirmationFooterNote", e.target.value)}
+                className="w-full p-3 rounded border border-border bg-background text-foreground"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Section 6: Email Dispatch Diagnostics */}
         <div className="p-6 rounded border border-border bg-card space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-bold tracking-tight text-foreground uppercase font-mono flex items-center gap-2">
               <Mail className="h-4 w-4 text-primary" />
-              <span>5. Automatic Confirmation Email Diagnostics</span>
+              <span>6. Automatic Confirmation Email Diagnostics</span>
             </h2>
             <Badge variant="outline" size="sm">
               LIVE DISPATCH TEST

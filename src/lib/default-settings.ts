@@ -37,6 +37,17 @@ export interface GlobalSettingsType {
       placeholder?: string;
     }>;
   };
+  emailTemplates?: {
+    confirmationSubject?: string;
+    confirmationHeading?: string;
+    confirmationSubheading?: string;
+    confirmationGreeting?: string;
+    confirmationBodyText?: string;
+    confirmationNextSteps?: string;
+    confirmationFooterNote?: string;
+    statusUpdateSubject?: string;
+    statusUpdateBody?: string;
+  };
   announcement: {
     enabled: boolean;
     text: string;
@@ -103,6 +114,17 @@ export const DEFAULT_SETTINGS: GlobalSettingsType = {
         placeholder: "Select meal preference",
       },
     ],
+  },
+  emailTemplates: {
+    confirmationSubject: "[Expothon 2026] Registration Confirmed: {registrationId} - {projectTitle}",
+    confirmationHeading: "IoT Lab Centre of Excellence",
+    confirmationSubheading: "Saveetha School of Engineering, SIMATS • Expothon 2026",
+    confirmationGreeting: "Dear {leadName} & Team,",
+    confirmationBodyText: "Thank you for submitting your project abstract for Expothon 2026 — National-Level IoT & Embedded Systems Project Exhibition organized by the IoT Lab Centre of Excellence (CoE), Department of ECE.",
+    confirmationNextSteps: "Your submission is currently undergoing review by the Technical Evaluation Committee. Shortlist results and physical demo stall assignments will be announced on November 01, 2026.",
+    confirmationFooterNote: "Please save this email and your Registration ID ({registrationId}) for all future correspondence, certificate verification, and venue entry on {eventDate}.",
+    statusUpdateSubject: "[Expothon 2026] Application Status Update: {registrationId}",
+    statusUpdateBody: "Your application for Expothon 2026 project exhibition has been updated. Please log in to the status portal using your Registration ID to check allocation details.",
   },
   announcement: {
     enabled: true,

@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { getGlobalSettings } from "@/lib/services/settings-service";
 
 export interface RegistrationEmailPayload {
   registrationId: string;
@@ -14,6 +15,13 @@ export interface RegistrationEmailPayload {
   venueName?: string;
 }
 
+function replacePlaceholders(template: string, vars: Record<string, string>): string {
+  if (!template) return "";
+  return template.replace(/\{(\w+)\}/g, (_, key) => {
+    return vars[key] !== undefined ? vars[key] : `{${key}}`;
+  });
+}
+
 /**
  * Multi-provider Email Dispatcher:
  * 1. Resend API (HTTP fetch, ideal for Vercel serverless) via RESEND_API_KEY
@@ -23,12 +31,45 @@ export interface RegistrationEmailPayload {
 export async function sendRegistrationConfirmationEmail(
   payload: RegistrationEmailPayload
 ): Promise<{ success: boolean; provider?: string; messageId?: string; simulated?: boolean; error?: string }> {
+  const settings = await getGlobalSettings();
   const appUrl = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "https://simats-iot-coe.vercel.app";
   const statusLookupUrl = `${appUrl}/registration-status?id=${encodeURIComponent(payload.registrationId)}`;
   const exhibitionDate = payload.eventDate || "November 04, 2026";
-  const venue = payload.venueName || "IoT Centre of Excellence Lab, Department of ECE, Saveetha School of Engineering (SIMATS)";
+  const venue = payload.venueName || settings.venueName || "IoT Centre of Excellence Lab, Department of ECE, Saveetha School of Engineering (SIMATS)";
 
-  const emailSubject = `[Expothon 2026] Registration Confirmed: ${payload.registrationId} - ${payload.projectTitle}`;
+  const tpl = settings.emailTemplates || {};
+
+  const vars: Record<string, string> = {
+    leadName: payload.leadName,
+    teamName: payload.teamName,
+    registrationId: payload.registrationId,
+    projectTitle: payload.projectTitle,
+    trackId: payload.trackId.toUpperCase(),
+    collegeName: payload.collegeName,
+    department: payload.department,
+    eventDate: exhibitionDate,
+    venue: venue,
+    statusLookupUrl: statusLookupUrl,
+    institutionName: settings.institutionName,
+    centreName: settings.centreName,
+    eventName: settings.eventName,
+  };
+
+  const rawSubject = tpl.confirmationSubject || "[Expothon 2026] Registration Confirmed: {registrationId} - {projectTitle}";
+  const rawHeading = tpl.confirmationHeading || "IoT Lab Centre of Excellence";
+  const rawSubheading = tpl.confirmationSubheading || "Saveetha School of Engineering, SIMATS • Expothon 2026";
+  const rawGreeting = tpl.confirmationGreeting || "Dear {leadName} & Team,";
+  const rawBodyText = tpl.confirmationBodyText || "Thank you for submitting your project abstract for Expothon 2026 — National-Level IoT & Embedded Systems Project Exhibition organized by the IoT Lab Centre of Excellence (CoE), Department of ECE.";
+  const rawNextSteps = tpl.confirmationNextSteps || "Your submission is currently undergoing review by the Technical Evaluation Committee. Shortlist results and physical demo stall assignments will be announced on November 01, 2026.";
+  const rawFooterNote = tpl.confirmationFooterNote || "Please save this email and your Registration ID ({registrationId}) for all future correspondence, certificate verification, and venue entry on {eventDate}.";
+
+  const emailSubject = replacePlaceholders(rawSubject, vars);
+  const heading = replacePlaceholders(rawHeading, vars);
+  const subheading = replacePlaceholders(rawSubheading, vars);
+  const greeting = replacePlaceholders(rawGreeting, vars);
+  const bodyText = replacePlaceholders(rawBodyText, vars);
+  const nextSteps = replacePlaceholders(rawNextSteps, vars);
+  const footerNote = replacePlaceholders(rawFooterNote, vars);
 
   const htmlContent = `
 <!DOCTYPE html>
@@ -165,15 +206,13 @@ export async function sendRegistrationConfirmationEmail(
 <body>
   <div class="email-container">
     <div class="email-header">
-      <h1>IoT Lab Centre of Excellence</h1>
-      <p>Saveetha School of Engineering, SIMATS • Expothon 2026</p>
+      <h1>${heading}</h1>
+      <p>${subheading}</p>
     </div>
 
     <div class="email-body">
-      <div class="greeting">Dear ${payload.leadName} & Team,</div>
-      <p>
-        Thank you for submitting your project abstract for <strong>Expothon 2026</strong> — National-Level IoT & Embedded Systems Project Exhibition organized by the <strong>IoT Lab Centre of Excellence (CoE), Department of ECE</strong>.
-      </p>
+      <div class="greeting">${greeting}</div>
+      <p>${bodyText}</p>
 
       <div class="id-box">
         <div class="id-label">Official Registration ID</div>
@@ -208,7 +247,7 @@ export async function sendRegistrationConfirmationEmail(
       </table>
 
       <div class="notice-box">
-        <strong>Next Steps:</strong> Your submission is currently undergoing review by the Technical Evaluation Committee. Shortlist results and physical demo stall assignments will be announced on <strong>November 01, 2026</strong>.
+        <strong>Next Steps:</strong> ${nextSteps}
       </div>
 
       <div class="btn-container">
@@ -218,14 +257,14 @@ export async function sendRegistrationConfirmationEmail(
       </div>
 
       <p style="font-size: 12px; color: #64748b; margin-top: 24px;">
-        Please save this email and your <strong>Registration ID (${payload.registrationId})</strong> for all future correspondence, certificate verification, and venue entry on <strong>November 04, 2026</strong>.
+        ${footerNote}
       </p>
     </div>
 
     <div class="email-footer">
-      <p><strong>IoT Lab Centre of Excellence (CoE)</strong></p>
-      <p>Department of Electronics and Communication Engineering (ECE)<br>Saveetha School of Engineering, SIMATS Deemed University, Chennai - 602105</p>
-      <p>Official Contact: <a href="mailto:iotcoe.ece@saveetha.com" style="color: #0284c7;">iotcoe.ece@saveetha.com</a> | +91 44 2680 1999</p>
+      <p><strong>${settings.centreName || "IoT Lab Centre of Excellence (CoE)"}</strong></p>
+      <p>${settings.department || "Department of Electronics and Communication Engineering (ECE)"}<br>${settings.venueAddress || "Saveetha School of Engineering, SIMATS Deemed University, Chennai - 602105"}</p>
+      <p>Official Contact: <a href="mailto:${settings.contactEmail || "iotcoe.ece@saveetha.com"}" style="color: #0284c7;">${settings.contactEmail || "iotcoe.ece@saveetha.com"}</a> | ${settings.contactPhone || "+91 44 2680 1999"}</p>
     </div>
   </div>
 </body>
@@ -233,13 +272,12 @@ export async function sendRegistrationConfirmationEmail(
   `;
 
   const textContent = `
-EXPOTHON 2026 - REGISTRATION CONFIRMATION
-IoT Lab Centre of Excellence (CoE)
-Saveetha School of Engineering, SIMATS
+${heading.toUpperCase()}
+${subheading}
 
-Dear ${payload.leadName} & Team,
+${greeting}
 
-Your registration for Expothon 2026 has been successfully received.
+${bodyText}
 
 ==================================================
 REGISTRATION ID: ${payload.registrationId}
@@ -254,14 +292,16 @@ PROJECT DETAILS:
 - Venue: ${venue}
 
 NEXT STEPS:
-Your abstract is in technical review. Shortlist announcements will be made on November 01, 2026.
+${nextSteps}
 
 Track your status online:
 ${statusLookupUrl}
 
-Department of Electronics & Communication Engineering (ECE)
-Saveetha School of Engineering, SIMATS, Chennai
-Contact: iotcoe.ece@saveetha.com
+${footerNote}
+
+${settings.department}
+${settings.institutionName}
+Contact: ${settings.contactEmail}
   `;
 
   // 1. Check Resend API

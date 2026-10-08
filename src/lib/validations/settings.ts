@@ -46,6 +46,19 @@ export const SettingsUpdateSchema = z.object({
         .default([]),
     })
     .optional(),
+  emailTemplates: z
+    .object({
+      confirmationSubject: z.string().optional().default(""),
+      confirmationHeading: z.string().optional().default(""),
+      confirmationSubheading: z.string().optional().default(""),
+      confirmationGreeting: z.string().optional().default(""),
+      confirmationBodyText: z.string().optional().default(""),
+      confirmationNextSteps: z.string().optional().default(""),
+      confirmationFooterNote: z.string().optional().default(""),
+      statusUpdateSubject: z.string().optional().default(""),
+      statusUpdateBody: z.string().optional().default(""),
+    })
+    .optional(),
   announcement: z.object({
     enabled: z.boolean(),
     text: z.string(),
