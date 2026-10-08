@@ -304,7 +304,44 @@ ${settings.institutionName}
 Contact: ${settings.contactEmail}
   `;
 
-  // 1. Check Resend API
+  // 1. Check Brevo REST API
+  const brevoApiKey = process.env.BREVO_API_KEY || process.env.SIB_API_KEY;
+  if (brevoApiKey && brevoApiKey.trim() !== "") {
+    try {
+      const fromEmail = process.env.EMAIL_FROM_ADDRESS || process.env.BREVO_SENDER || "kishorecht149@gmail.com";
+      const fromName = process.env.EMAIL_FROM_NAME || "Saveetha IoT CoE";
+      const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+        method: "POST",
+        headers: {
+          "api-key": brevoApiKey.trim(),
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          sender: { name: fromName, email: fromEmail },
+          to: [{ email: payload.recipientEmail, name: payload.leadName }],
+          subject: emailSubject,
+          htmlContent: htmlContent,
+          textContent: textContent,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.messageId) {
+        console.log(`[BREVO API SENT] Dispatched to ${payload.recipientEmail} (Msg ID: ${data.messageId})`);
+        return { success: true, provider: "brevo", messageId: data.messageId };
+      } else {
+        console.error("[BREVO API ERROR]", data);
+        const errMsg = data.message || (typeof data === "object" ? JSON.stringify(data) : String(data));
+        return { success: false, provider: "brevo", error: `Brevo API rejected: ${errMsg}` };
+      }
+    } catch (brevoErr: any) {
+      console.error("[BREVO API EXCEPTION]", brevoErr.message || brevoErr);
+      return { success: false, provider: "brevo", error: `Brevo request failed: ${brevoErr.message}` };
+    }
+  }
+
+  // 2. Check Resend API
   const resendApiKey = process.env.RESEND_API_KEY;
   if (resendApiKey && resendApiKey.trim() !== "") {
     try {
