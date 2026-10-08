@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Save, RefreshCw, CheckCircle, AlertCircle, Settings as SettingsIcon, Bell } from "lucide-react";
+import { Save, RefreshCw, CheckCircle, AlertCircle, Settings as SettingsIcon, Bell, Mail, Send } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { GlobalSettingsType, DEFAULT_SETTINGS } from "@/lib/default-settings";
@@ -12,6 +12,9 @@ export default function AdminSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [testEmailAddress, setTestEmailAddress] = useState("");
+  const [sendingTestEmail, setSendingTestEmail] = useState(false);
+  const [testEmailStatus, setTestEmailStatus] = useState<any>(null);
 
   useEffect(() => {
     fetchSettings();
@@ -72,6 +75,28 @@ export default function AdminSettingsPage() {
       setErrorMessage("Network error occurred while saving settings.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSendTestEmail = async () => {
+    if (!testEmailAddress || !testEmailAddress.includes("@")) {
+      setTestEmailStatus({ error: "Please enter a valid email address to test." });
+      return;
+    }
+    setSendingTestEmail(true);
+    setTestEmailStatus(null);
+    try {
+      const res = await fetch("/api/admin/email/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: testEmailAddress }),
+      });
+      const data = await res.json();
+      setTestEmailStatus(data);
+    } catch (err: any) {
+      setTestEmailStatus({ error: err.message || "Failed to communicate with test email endpoint" });
+    } finally {
+      setSendingTestEmail(false);
     }
   };
 
@@ -633,6 +658,79 @@ export default function AdminSettingsPage() {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Section 5: Email Dispatch Diagnostics */}
+        <div className="p-6 rounded border border-border bg-card space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-bold tracking-tight text-foreground uppercase font-mono flex items-center gap-2">
+              <Mail className="h-4 w-4 text-primary" />
+              <span>5. Automatic Confirmation Email Diagnostics</span>
+            </h2>
+            <Badge variant="outline" size="sm">
+              LIVE DISPATCH TEST
+            </Badge>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Expothon dispatches an instant HTML registration confirmation email to every team lead. Test your active email provider (Resend API, Gmail App Password, or SMTP).
+          </p>
+
+          <div className="flex flex-col sm:flex-row gap-3 pt-2">
+            <input
+              type="email"
+              placeholder="Enter recipient email (e.g. your email)"
+              value={testEmailAddress}
+              onChange={(e) => setTestEmailAddress(e.target.value)}
+              className="flex-1 h-9 px-3 rounded border border-border bg-background text-foreground text-xs font-mono"
+            />
+            <Button
+              type="button"
+              onClick={handleSendTestEmail}
+              isLoading={sendingTestEmail}
+              variant="secondary"
+              size="sm"
+              className="gap-2 text-xs font-mono whitespace-nowrap"
+            >
+              <Send className="h-3.5 w-3.5" />
+              <span>Send Test Email</span>
+            </Button>
+          </div>
+
+          {testEmailStatus && (
+            <div
+              className={`p-3 rounded text-xs font-mono ${
+                testEmailStatus.success
+                  ? "bg-primary/10 border border-primary/30 text-foreground"
+                  : "bg-destructive/10 border border-destructive/30 text-destructive"
+              }`}
+            >
+              {testEmailStatus.success ? (
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-green-500 font-bold">
+                    <CheckCircle className="h-4 w-4" />
+                    <span>Test Email Dispatched Successfully!</span>
+                  </div>
+                  <div className="text-muted-foreground">
+                    Provider: <strong className="text-foreground uppercase">{testEmailStatus.provider}</strong>
+                    {testEmailStatus.simulated && (
+                      <span className="text-amber-500 ml-2">(Simulated - Add RESEND_API_KEY or GMAIL_APP_PASSWORD in Vercel to send real emails)</span>
+                    )}
+                  </div>
+                  {testEmailStatus.messageId && (
+                    <div className="text-muted-foreground text-[11px]">Message ID: {testEmailStatus.messageId}</div>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 font-bold">
+                    <AlertCircle className="h-4 w-4" />
+                    <span>Failed to Send Test Email</span>
+                  </div>
+                  <div>{testEmailStatus.error || "Unknown dispatch error"}</div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Submit */}

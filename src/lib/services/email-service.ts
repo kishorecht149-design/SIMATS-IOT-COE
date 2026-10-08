@@ -15,38 +15,16 @@ export interface RegistrationEmailPayload {
 }
 
 /**
- * Creates nodemailer transport if SMTP env variables are provided
- */
-function getTransporter() {
-  const host = process.env.SMTP_HOST;
-  const port = parseInt(process.env.SMTP_PORT || "587", 10);
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
-
-  if (!host || !user || !pass) {
-    return null;
-  }
-
-  return nodemailer.createTransport({
-    host,
-    port,
-    secure: port === 465,
-    auth: {
-      user,
-      pass,
-    },
-  });
-}
-
-/**
- * Send an automatic registration confirmation email with project tracking details
+ * Multi-provider Email Dispatcher:
+ * 1. Resend API (HTTP fetch, ideal for Vercel serverless) via RESEND_API_KEY
+ * 2. Gmail SMTP via GMAIL_USER + GMAIL_APP_PASSWORD (or EMAIL_USER + EMAIL_PASS)
+ * 3. Custom SMTP via SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS
  */
 export async function sendRegistrationConfirmationEmail(
   payload: RegistrationEmailPayload
-): Promise<{ success: boolean; messageId?: string; simulated?: boolean; error?: string }> {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+): Promise<{ success: boolean; provider?: string; messageId?: string; simulated?: boolean; error?: string }> {
+  const appUrl = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "https://simats-iot-coe.vercel.app";
   const statusLookupUrl = `${appUrl}/registration-status?id=${encodeURIComponent(payload.registrationId)}`;
-  const fromAddress = process.env.SMTP_FROM || process.env.EMAIL_FROM || "Saveetha IoT Lab CoE <iotcoe.ece@saveetha.com>";
   const exhibitionDate = payload.eventDate || "November 04, 2026";
   const venue = payload.venueName || "IoT Centre of Excellence Lab, Department of ECE, Saveetha School of Engineering (SIMATS)";
 
@@ -286,33 +264,110 @@ Saveetha School of Engineering, SIMATS, Chennai
 Contact: iotcoe.ece@saveetha.com
   `;
 
-  try {
-    const transporter = getTransporter();
+  // 1. Check Resend API
+  const resendApiKey = process.env.RESEND_API_KEY;
+  if (resendApiKey && resendApiKey.trim() !== "") {
+    try {
+      const from = process.env.EMAIL_FROM || "IoT CoE SIMATS <onboarding@resend.dev>";
+      const res = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${resendApiKey.trim()}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from,
+          to: [payload.recipientEmail],
+          subject: emailSubject,
+          html: htmlContent,
+          text: textContent,
+        }),
+      });
 
-    if (!transporter) {
-      console.log(`\n======================================================`);
-      console.log(`[AUTOMATIC EMAIL SIMULATION - SMTP NOT CONFIGURED]`);
-      console.log(`To: ${payload.recipientEmail}`);
-      console.log(`Subject: ${emailSubject}`);
-      console.log(`Registration ID: ${payload.registrationId}`);
-      console.log(`Project: ${payload.projectTitle}`);
-      console.log(`Status Lookup: ${statusLookupUrl}`);
-      console.log(`======================================================\n`);
-      return { success: true, simulated: true };
+      const data = await res.json();
+      if (res.ok) {
+        console.log(`[RESEND EMAIL SENT] Confirmation sent to ${payload.recipientEmail} (ID: ${data.id})`);
+        return { success: true, provider: "resend", messageId: data.id };
+      } else {
+        console.error("[RESEND ERROR]", data);
+        // If Resend failed (e.g. domain not verified on free tier), fallback to SMTP/Gmail if configured
+      }
+    } catch (resendErr: any) {
+      console.error("[RESEND FETCH EXCEPTION]", resendErr.message || resendErr);
     }
-
-    const info = await transporter.sendMail({
-      from: fromAddress,
-      to: payload.recipientEmail,
-      subject: emailSubject,
-      text: textContent,
-      html: htmlContent,
-    });
-
-    console.log(`[EMAIL SENT] Confirmation sent to ${payload.recipientEmail} (Msg ID: ${info.messageId})`);
-    return { success: true, messageId: info.messageId };
-  } catch (error: any) {
-    console.error(`[EMAIL ERROR] Failed to send email to ${payload.recipientEmail}:`, error);
-    return { success: false, error: error.message };
   }
+
+  // 2. Check Gmail credentials
+  const gmailUser = process.env.GMAIL_USER || process.env.EMAIL_USER;
+  const gmailPass = process.env.GMAIL_APP_PASSWORD || process.env.EMAIL_PASS;
+  if (gmailUser && gmailPass) {
+    try {
+      const transporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: {
+          user: gmailUser,
+          pass: gmailPass.replace(/\s+/g, ""), // Clean space in app passwords
+        },
+      });
+
+      const info = await transporter.sendMail({
+        from: `"SIMATS IoT CoE" <${gmailUser}>`,
+        to: payload.recipientEmail,
+        subject: emailSubject,
+        text: textContent,
+        html: htmlContent,
+      });
+
+      console.log(`[GMAIL SENT] Email dispatched to ${payload.recipientEmail} (Msg ID: ${info.messageId})`);
+      return { success: true, provider: "gmail", messageId: info.messageId };
+    } catch (gmailErr: any) {
+      console.error("[GMAIL SMTP ERROR]", gmailErr.message || gmailErr);
+    }
+  }
+
+  // 3. Check Custom SMTP
+  const smtpHost = process.env.SMTP_HOST;
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASS;
+  const smtpPort = parseInt(process.env.SMTP_PORT || "587", 10);
+
+  if (smtpHost && smtpUser && smtpPass) {
+    try {
+      const transporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: smtpPort,
+        secure: smtpPort === 465,
+        auth: {
+          user: smtpUser,
+          pass: smtpPass,
+        },
+      });
+
+      const info = await transporter.sendMail({
+        from: process.env.SMTP_FROM || process.env.EMAIL_FROM || `"Saveetha IoT CoE" <${smtpUser}>`,
+        to: payload.recipientEmail,
+        subject: emailSubject,
+        text: textContent,
+        html: htmlContent,
+      });
+
+      console.log(`[SMTP SENT] Email sent to ${payload.recipientEmail} (Msg ID: ${info.messageId})`);
+      return { success: true, provider: "smtp", messageId: info.messageId };
+    } catch (smtpErr: any) {
+      console.error("[SMTP ERROR]", smtpErr.message || smtpErr);
+      return { success: false, provider: "smtp", error: smtpErr.message };
+    }
+  }
+
+  // 4. If No Email Credentials are configured
+  console.log(`\n======================================================`);
+  console.log(`[AUTOMATIC EMAIL SIMULATED - NO EMAIL PROVIDER CONFIGURED]`);
+  console.log(`To: ${payload.recipientEmail}`);
+  console.log(`Subject: ${emailSubject}`);
+  console.log(`Registration ID: ${payload.registrationId}`);
+  console.log(`Project: ${payload.projectTitle}`);
+  console.log(`Status Lookup: ${statusLookupUrl}`);
+  console.log(`======================================================\n`);
+
+  return { success: true, simulated: true };
 }
